@@ -4,7 +4,9 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { mkdirSync } from 'node:fs';
 import session from 'express-session';
 import path from 'node:path';
+import { ApiExceptionFilter } from './api-exception.filter';
 import { AppModule } from './app.module';
+import { getStorageInfo } from './storage-mode';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -13,6 +15,7 @@ async function bootstrap(): Promise<void> {
   const uploadsDirectory = path.join(runtimeDirectory, 'uploads');
   mkdirSync(uploadsDirectory, { recursive: true });
   app.useBodyParser('json', { limit: '50mb' });
+  app.useGlobalFilters(new ApiExceptionFilter());
 
   app.use(
     session({
@@ -52,7 +55,7 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
-    response.sendFile(path.join(publicDirectory, 'index.html'), (error?: Error) => {
+    response.sendFile('index.html', { root: publicDirectory }, (error?: Error) => {
       if (error) next(error);
     });
   });
@@ -60,7 +63,7 @@ async function bootstrap(): Promise<void> {
   const port = Number(process.env.PORT ?? 4185);
   await app.listen(port, '127.0.0.1');
   console.log(`품질 대시보드 서버 실행 중: http://127.0.0.1:${port}`);
-  console.log('저장소: 내 컴퓨터(runtime/local-state.json)');
+  console.log(`저장소: ${getStorageInfo().label}`);
 }
 
 void bootstrap();

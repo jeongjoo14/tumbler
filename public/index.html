@@ -695,7 +695,11 @@
     <footer id="app-footer" class="app-footer" hidden>텀블러 공장 품질관리 시스템입니다.</footer>
 
     <script>
+      const loginBox = document.querySelector('#login-box');
+      const appScreen = document.querySelector('#app-screen');
+      const loginForm = document.querySelector('#login-form');
       const logoutButton = document.querySelector('#logout-button');
+      const loginError = document.querySelector('#login-error');
       const headerActions = document.querySelector('#header-actions');
       const headerUser = document.querySelector('#header-user');
       const yellowNotice = document.querySelector('#yellow-notice');
@@ -1358,6 +1362,7 @@ window.showLoginApp = function(user) {
  document.querySelector('#settings-view').hidden=!isSettings;
  document.querySelector('#photo-registration-button').hidden=path!=='/';
  document.querySelector('#not-found-view').hidden=true;
+        if (path === '/') loadHomeSummary();
         if (isNewInspection) window.loadLoginInspectionForm?.();
         if (isSettings) window.loadLoginStorageStatus?.();
         if (isDetail) window.loadLoginInspectionDetail?.(path.split('/').pop());

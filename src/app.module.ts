@@ -5,9 +5,12 @@ import { InspectionsController } from './inspections.controller';
 import { InspectionStore } from './inspection.store';
 import { HomeController } from './home.controller';
 import { OperationsController } from './operations.controller';
+import { GoogleWebAppClient } from './google-web-app.client';
+import { ApiFallbackController } from './api-fallback.controller';
+import { DrivePhotoController } from './drive-photo.controller';
 
 @Module({
-  controllers: [AuthController, CatalogController, InspectionsController, HomeController, OperationsController],
-  providers: [InspectionStore],
+  controllers: [AuthController, CatalogController, InspectionsController, HomeController, OperationsController, DrivePhotoController, ApiFallbackController],
+  providers: [InspectionStore, GoogleWebAppClient],
 })
 export class AppModule {}
