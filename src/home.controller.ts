@@ -1,9 +1,13 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { InspectionStore } from './inspection.store';
+import { GeminiResultStore } from './gemini-result.store';
 
 @Controller('api/home')
 export class HomeController {
-  constructor(private readonly store: InspectionStore) {}
+  constructor(
+    private readonly store: InspectionStore,
+    private readonly geminiResults: GeminiResultStore,
+  ) {}
 
   @Get()
   async getHome(@Query('date') requestedDate?: string): Promise<{
@@ -13,7 +17,10 @@ export class HomeController {
     hold: number;
     review_pending: number;
   }> {
-    const inspections = await this.store.getAll();
+    const [inspections, inspectionIdsWithResults] = await Promise.all([
+      this.store.getAll(),
+      this.geminiResults.getInspectionIdsWithResults(),
+    ]);
     const mostRecent = inspections
       .map((inspection) => inspection.inspected_at.slice(0, 10))
       .sort((a, b) => b.localeCompare(a))[0] ?? '';
@@ -27,7 +34,9 @@ export class HomeController {
       total: dailyInspections.length,
       ng: dailyInspections.filter((inspection) => inspection.decision === 'NG').length,
       hold: dailyInspections.filter((inspection) => inspection.decision === 'HOLD').length,
-      review_pending: 0,
+      review_pending: dailyInspections.filter((inspection) =>
+        inspectionIdsWithResults.has(inspection.inspection_id),
+      ).length,
     };
   }
 }
