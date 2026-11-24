@@ -21,6 +21,8 @@ function doPost(event) {
       else if (request.action === 'listEvidenceQueries') data = listEvidenceQueries(spreadsheet, request.inspection_id);
       else if (request.action === 'saveEvidenceLink') data = saveEvidenceLink(spreadsheet, request.record);
       else if (request.action === 'listEvidenceLinks') data = listEvidenceLinks(spreadsheet, request.inspection_id);
+      else if (request.action === 'saveInspectionRecord') data = saveInspectionRecord(spreadsheet, request);
+      else if (request.action === 'listInspectionRecords') data = listInspectionRecords(spreadsheet, request.inspection_id);
       else if (request.action === 'runGemini') data = runGemini(request);
       else if (request.action === 'setOnePortKey') data = setOnePortKey(request.key);
       else throw new Error('지원하지 않는 일입니다.');
@@ -85,6 +87,18 @@ function setupStorage() {
     'user',
     'created_at',
   ]);
+  ensureSheetHeaders(spreadsheet, 'inspection_records', [
+    'record_id',
+    'inspection_id',
+    'user_id',
+    'recorded_at',
+    'decision',
+    'weight_g',
+    'notes',
+    'content_version',
+    'change_reason',
+  ]);
+  ensureSheetHeaders(spreadsheet, 'record_defects', ['record_id', 'defect_code']);
   removeEmptyDefaultSheet(spreadsheet);
 
   return { sheetUrl: spreadsheet.getUrl(), folderUrl: folder.getUrl() };
@@ -272,6 +286,38 @@ function listRowsOfInspection(spreadsheet, tabName, inspectionId) {
   if (!sheet) return [];
   return readSheetRows(sheet)
     .filter((row) => inspectionId === undefined || row.inspection_id === inspectionId);
+}
+
+function saveInspectionRecord(spreadsheet, request) {
+  const record = request.record;
+  if (!record || typeof record !== 'object' || Array.isArray(record) || !Array.isArray(request.defects)) {
+    throw createUserError('판단 기록을 확인하세요.');
+  }
+  if (!spreadsheet.getSheetByName('inspection_records') || !spreadsheet.getSheetByName('record_defects')) {
+    throw createUserError('판단 기록 탭이 없습니다. npm.cmd run gas:init을 실행하세요.');
+  }
+
+  appendRows(spreadsheet, {
+    inspection_records: [record],
+    record_defects: request.defects.map((code) => ({ record_id: record.record_id, defect_code: code })),
+  });
+  updateRow(spreadsheet, {
+    tab: 'inspections',
+    key: 'inspection_id',
+    value: record.inspection_id,
+    changes: { content_version: record.content_version },
+  });
+  return { saved: 1 };
+}
+
+function listInspectionRecords(spreadsheet, inspectionId) {
+  const records = listRowsOfInspection(spreadsheet, 'inspection_records', inspectionId);
+  const recordIds = records.map((row) => row.record_id);
+  const sheet = spreadsheet.getSheetByName('record_defects');
+  const defects = sheet
+    ? readSheetRows(sheet).filter((row) => recordIds.includes(row.record_id))
+    : [];
+  return { records: records, defects: defects };
 }
 
 function parseGeminiJsonCell(value, fallback) {

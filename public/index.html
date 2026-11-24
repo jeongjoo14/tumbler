@@ -521,6 +521,35 @@
       .evidence [hidden],
       .evidence[hidden] { display: none; }
 
+      .judgment { display: grid; gap: 14px; }
+
+      .judgment h3,
+      .judgment h4 { margin: 0; }
+
+      .judgment-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+
+      .judgment-buttons button { width: auto; margin: 0; padding: 12px 20px; color: #33483d; background: #edf2ee; border: 2px solid #d8e3dc; }
+
+      .judgment-buttons button[data-decision="OK"][aria-pressed="true"] { color: #fff; background: #2e7d46; border-color: #2e7d46; }
+
+      .judgment-buttons button[data-decision="NG"][aria-pressed="true"] { color: #fff; background: #c0392b; border-color: #c0392b; }
+
+      .judgment-buttons button[data-decision="HOLD"][aria-pressed="true"] { color: #fff; background: #c96a00; border-color: #c96a00; }
+
+      .judgment-buttons button[data-defect] { padding: 8px 14px; font-size: 15px; }
+
+      .judgment-buttons button[data-defect][aria-pressed="true"] { color: #fff; background: #3b5f8a; border-color: #3b5f8a; }
+
+      .judgment textarea { width: 100%; min-height: 110px; }
+
+      #judgment-save { width: fit-content; margin: 0; padding: 12px 20px; }
+
+      .record-history { margin-top: 24px; padding: 14px; border: 1px solid #d8e3dc; border-radius: 10px; }
+
+      .record-history summary { cursor: pointer; font-weight: 700; }
+
+      .record-history-body { margin-top: 12px; overflow-x: auto; }
+
       .prompt-settings { display: grid; gap: 8px; margin-top: 28px; max-width: 720px; }
 
       .prompt-settings textarea { width: 100%; min-height: 240px; }
@@ -856,7 +885,37 @@
                   </div>
                 </div>
               </section>
+              <section id="detail-judgment" class="judgment" hidden aria-label="내 판단 기록">
+                <h3>내 판단 기록</h3>
+                <h4>판정</h4>
+                <div class="judgment-buttons" role="group" aria-label="판정">
+                  <button type="button" data-decision="OK" aria-pressed="false">정상 OK</button>
+                  <button type="button" data-decision="NG" aria-pressed="false">불량 NG</button>
+                  <button type="button" data-decision="HOLD" aria-pressed="false">보류 HOLD</button>
+                </div>
+                <h4>불량</h4>
+                <div class="judgment-buttons" role="group" aria-label="불량">
+                  <button type="button" data-defect="D01" aria-pressed="false">스크래치</button>
+                  <button type="button" data-defect="D02" aria-pressed="false">찍힘</button>
+                  <button type="button" data-defect="D03" aria-pressed="false">라벨 오류</button>
+                  <button type="button" data-defect="D04" aria-pressed="false">뚜껑 조립 오류</button>
+                </div>
+                <div>
+                  <label for="judgment-memo">조치 메모</label>
+                  <textarea id="judgment-memo" rows="4"></textarea>
+                </div>
+                <div>
+                  <label for="judgment-reason">변경 사유</label>
+                  <input id="judgment-reason" type="text" />
+                </div>
+                <button id="judgment-save" type="button">내 판단 저장</button>
+                <p id="judgment-error" class="error-message" role="alert" hidden></p>
+              </section>
             </div>
+            <details id="record-history" class="record-history">
+              <summary>변경 이력</summary>
+              <div id="record-history-body" class="record-history-body"></div>
+            </details>
           </div>
         </section>
         <section id="not-found-view" hidden>
@@ -972,8 +1031,16 @@
       let detailGeminiComparisonResults = [];
       let geminiResultRequestId = 0;
       let geminiPollTimer = null;
-      const detailLaterTabMessage = document.createElement('p');
-      detailLaterTabMessage.textContent = '이 탭은 나중 회차에서 만듭니다.';
+      const detailJudgment = document.querySelector('#detail-judgment');
+      const decisionButtons = [...detailJudgment.querySelectorAll('[data-decision]')];
+      const defectButtons = [...detailJudgment.querySelectorAll('[data-defect]')];
+      const judgmentMemo = document.querySelector('#judgment-memo');
+      const judgmentReason = document.querySelector('#judgment-reason');
+      const judgmentSave = document.querySelector('#judgment-save');
+      const judgmentError = document.querySelector('#judgment-error');
+      const recordHistory = document.querySelector('#record-history');
+      const recordHistoryBody = document.querySelector('#record-history-body');
+      let recordHistoryRequestId = 0;
       const detailMainImage = document.querySelector('#detail-main-image');
       const detailThumbnails = document.querySelector('#detail-thumbnails');
       const detailEditForm = document.querySelector('#detail-edit-form');
@@ -1659,7 +1726,8 @@
           detailEvidence.hidden = false;
           detailPanel.replaceChildren(detailEvidence);
         } else {
-          detailPanel.replaceChildren(detailLaterTabMessage);
+          detailJudgment.hidden = false;
+          detailPanel.replaceChildren(detailJudgment);
         }
         if (index === 1 && activeDetailInspectionId) {
           void loadGeminiResult(activeDetailInspectionId);
@@ -1670,10 +1738,111 @@
         if (updateAddress) {
           const query = new URLSearchParams(window.location.search);
           if (index === 1) query.set('tab', '2');
+          else if (index === 3) query.set('tab', '4');
           else query.delete('tab');
           const search = query.toString();
           history.replaceState({}, '', `${window.location.pathname}${search ? `?${search}` : ''}`);
         }
+      }
+
+      function renderJudgment(inspection) {
+        decisionButtons.forEach((button) => {
+          button.setAttribute('aria-pressed', String(button.dataset.decision === inspection.decision));
+        });
+        const defectCodes = (inspection.defects || []).map((defect) => defect.defect_code);
+        defectButtons.forEach((button) => {
+          button.setAttribute('aria-pressed', String(defectCodes.includes(button.dataset.defect)));
+        });
+        judgmentMemo.value = inspection.memo || '';
+        judgmentReason.value = '담당자 대조 판정 기록';
+        judgmentError.hidden = true;
+      }
+
+      decisionButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          decisionButtons.forEach((other) => other.setAttribute('aria-pressed', String(other === button)));
+        });
+      });
+
+      defectButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          button.setAttribute('aria-pressed', String(button.getAttribute('aria-pressed') !== 'true'));
+        });
+      });
+
+      judgmentSave.addEventListener('click', async () => {
+        const inspectionId = activeDetailInspectionId;
+        if (!inspectionId) return;
+        const isPressed = (button) => button.getAttribute('aria-pressed') === 'true';
+        judgmentSave.disabled = true;
+        judgmentError.hidden = true;
+        try {
+          const response = await fetch(`/api/inspections/${encodeURIComponent(inspectionId)}/records`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              decision: decisionButtons.find(isPressed)?.dataset.decision ?? null,
+              defects: defectButtons.filter(isPressed).map((button) => button.dataset.defect),
+              memo: judgmentMemo.value,
+              change_reason: judgmentReason.value,
+            }),
+          });
+          const record = await response.json();
+          if (!response.ok) throw new Error(record.error || '판단을 저장하지 못했습니다.');
+          if (activeDetailInspectionId === inspectionId) await loadInspectionDetail(inspectionId);
+        } catch (error) {
+          if (activeDetailInspectionId !== inspectionId) return;
+          judgmentError.textContent = error.message || '판단을 저장하지 못했습니다.';
+          judgmentError.hidden = false;
+        } finally {
+          judgmentSave.disabled = false;
+        }
+      });
+
+      recordHistory.addEventListener('toggle', async () => {
+        if (!recordHistory.open || !activeDetailInspectionId) return;
+        const requestId = ++recordHistoryRequestId;
+        recordHistoryBody.textContent = '불러오는 중입니다.';
+        try {
+          const response = await fetch(`/api/inspections/${encodeURIComponent(activeDetailInspectionId)}/records`);
+          const records = await response.json();
+          if (!response.ok) throw new Error(records.error || '변경 이력을 불러오지 못했습니다.');
+          if (requestId !== recordHistoryRequestId) return;
+          renderRecordHistory(records);
+        } catch (error) {
+          if (requestId !== recordHistoryRequestId) return;
+          recordHistoryBody.textContent = error.message || '변경 이력을 불러오지 못했습니다.';
+        }
+      });
+
+      function renderRecordHistory(records) {
+        if (records.length === 0) {
+          recordHistoryBody.textContent = '아직 저장한 판단이 없습니다.';
+          return;
+        }
+        const table = document.createElement('table');
+        table.className = 'gemini-comparison-table';
+        const head = table.createTHead().insertRow();
+        ['저장 시각', '기록 버전', '판정', '중량', '저장한 사람', '변경 사유'].forEach((label) => {
+          const cell = document.createElement('th');
+          cell.textContent = label;
+          head.append(cell);
+        });
+        const body = table.createTBody();
+        records.forEach((record) => {
+          const row = body.insertRow();
+          [
+            record.recorded_at,
+            record.content_version,
+            record.decision,
+            record.weight_g === null ? '미측정' : `${record.weight_g}g`,
+            record.user_id,
+            record.change_reason,
+          ].forEach((value) => {
+            row.insertCell().textContent = value;
+          });
+        });
+        recordHistoryBody.replaceChildren(table);
       }
 
       function renderDetailImages(images) {
@@ -1760,7 +1929,11 @@
           detailEditError.hidden = true;
           renderDetailImages(Array.isArray(inspection.images) ? inspection.images : []);
           inspectionDetailContent.hidden = false;
-          selectDetailTab(new URLSearchParams(window.location.search).get('tab') === '2' ? 1 : 0, false);
+          renderJudgment(inspection);
+          recordHistoryRequestId += 1;
+          recordHistory.open = false;
+          recordHistoryBody.replaceChildren();
+          selectDetailTab({ 2: 1, 4: 3 }[new URLSearchParams(window.location.search).get('tab')] ?? 0, false);
         } catch (error) {
           if (requestId !== activeDetailRequest) return;
           inspectionDetailError.textContent = error.message || '검사를 불러오지 못했습니다.';

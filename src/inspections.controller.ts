@@ -8,12 +8,16 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { randomBytes, randomUUID } from 'node:crypto';
-import type { Inspection } from './inspection.types';
+import './auth.types';
+import { defectNames, type Inspection, type InspectionRecordWithDefects } from './inspection.types';
 import { InspectionStore, type PreparedPhoto } from './inspection.store';
 import { EvidenceStore } from './evidence.store';
 import { GeminiResultStore } from './gemini-result.store';
+import { koreanDateTime } from './korean-time';
 import { findPrompt } from './prompts.controller';
 import { getGeminiInfo } from './storage-mode';
 
@@ -31,6 +35,13 @@ interface CreateInspectionBody {
 interface StartGeminiBody {
   revision?: unknown;
   prompt?: unknown;
+}
+
+interface SaveRecordBody {
+  decision?: unknown;
+  defects?: unknown;
+  memo?: unknown;
+  change_reason?: unknown;
 }
 
 interface UpdateInspectionBody {
@@ -128,6 +139,62 @@ export class InspectionsController {
     inspection.content_version += 1;
     await this.store.update(inspection);
     return inspection;
+  }
+
+  @Get(':inspectionId/records')
+  async getRecords(@Param('inspectionId') inspectionId: string): Promise<InspectionRecordWithDefects[]> {
+    const [inspection, records] = await Promise.all([
+      this.store.find(inspectionId),
+      this.store.listRecords(inspectionId),
+    ]);
+    if (!inspection) throw new NotFoundException('검사를 찾을 수 없습니다.');
+    return records;
+  }
+
+  @Post(':inspectionId/records')
+  async saveRecord(
+    @Param('inspectionId') inspectionId: string,
+    @Body() body: SaveRecordBody,
+    @Req() request: Request,
+  ): Promise<InspectionRecordWithDefects> {
+    const inspection = await this.store.find(inspectionId);
+    if (!inspection) throw new NotFoundException('검사를 찾을 수 없습니다.');
+
+    const decision = body?.decision;
+    if (decision !== 'OK' && decision !== 'NG' && decision !== 'HOLD') {
+      throw new BadRequestException('판정을 골라 주세요.');
+    }
+    if (typeof body.change_reason !== 'string' || body.change_reason.trim() === '') {
+      throw new BadRequestException('변경 사유를 적어 주세요.');
+    }
+    if (inspection.weight_g === null && decision === 'OK') {
+      throw new BadRequestException('중량이 없는 검사는 정상(OK)으로 저장할 수 없습니다.');
+    }
+    if (body.memo !== undefined && typeof body.memo !== 'string') {
+      throw new BadRequestException('메모를 확인하세요.');
+    }
+    const defects: unknown = body.defects ?? [];
+    if (
+      !Array.isArray(defects) ||
+      !defects.every((code) => typeof code === 'string' && Object.hasOwn(defectNames, code))
+    ) {
+      throw new BadRequestException('불량을 확인하세요.');
+    }
+
+    return this.store.saveRecord(
+      {
+        record_id: `REC-${randomBytes(4).toString('hex')}`,
+        inspection_id: inspectionId,
+        user_id: request.session.user?.username ?? '',
+        recorded_at: koreanDateTime(),
+        decision,
+        weight_g: inspection.weight_g,
+        notes: body.memo ?? '',
+        content_version: inspection.content_version + 1,
+        change_reason: body.change_reason.trim(),
+      },
+      [...new Set(defects as string[])],
+    );
   }
 
   @Post(':inspectionId/gemini')

@@ -1,7 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { Inspection, LocalState } from './inspection.types';
+import {
+  defectNames,
+  type Inspection,
+  type InspectionRecord,
+  type InspectionRecordWithDefects,
+  type LocalState,
+  type RecordDefect,
+} from './inspection.types';
 import { GoogleWebAppClient } from './google-web-app.client';
 import { getStorageInfo } from './storage-mode';
 
@@ -16,6 +23,13 @@ interface GoogleInspectionRow {
   content_version: number | string;
 }
 
+interface GoogleRecordRow extends Omit<InspectionRecord, 'weight_g' | 'notes' | 'content_version' | 'change_reason'> {
+  weight_g: number | string | null;
+  notes: string | null;
+  content_version: number | string;
+  change_reason: string | null;
+}
+
 interface GoogleImageRow {
   inspection_id: string;
   position: number | string;
@@ -25,6 +39,8 @@ interface GoogleImageRow {
 export interface GoogleInspectionData {
   inspections: GoogleInspectionRow[];
   images: GoogleImageRow[];
+  inspection_records: GoogleRecordRow[];
+  record_defects: RecordDefect[];
 }
 
 export interface GooglePhoto {
@@ -46,18 +62,117 @@ export class InspectionStore {
 
   async getAll(): Promise<Inspection[]> {
     if (getStorageInfo().storage === 'live') return this.getGoogleInspections();
-    return this.getLocalInspections();
+    const state = this.readLocalState();
+    return this.applyRecords(state.inspections, state.inspection_records, state.record_defects);
   }
 
-  private getLocalInspections(): Inspection[] {
-    if (!existsSync(this.filePath)) return [];
-    const state = JSON.parse(readFileSync(this.filePath, 'utf8')) as LocalState;
-    return Array.isArray(state.inspections) ? state.inspections : [];
+  private readLocalState(): LocalState {
+    const state = existsSync(this.filePath)
+      ? (JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<LocalState>)
+      : {};
+    return {
+      ...state,
+      inspections: Array.isArray(state.inspections) ? state.inspections : [],
+      inspection_records: Array.isArray(state.inspection_records) ? state.inspection_records : [],
+      record_defects: Array.isArray(state.record_defects) ? state.record_defects : [],
+    };
+  }
+
+  private writeLocalState(state: LocalState): void {
+    mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const temporaryPath = `${this.filePath}.tmp`;
+    writeFileSync(temporaryPath, JSON.stringify(state, null, 2), 'utf8');
+    renameSync(temporaryPath, this.filePath);
+  }
+
+  private sortRecords(records: InspectionRecord[]): InspectionRecord[] {
+    return records
+      .slice()
+      .reverse()
+      .sort((left, right) =>
+        right.content_version - left.content_version ||
+        right.recorded_at.localeCompare(left.recorded_at),
+      );
+  }
+
+  private withDefects(record: InspectionRecord, recordDefects: RecordDefect[]): InspectionRecordWithDefects {
+    return {
+      ...record,
+      defects: recordDefects
+        .filter((item) => item.record_id === record.record_id)
+        .map(({ defect_code }) => ({ defect_code, defect_name: defectNames[defect_code] ?? defect_code })),
+    };
+  }
+
+  private applyRecords(
+    inspections: Inspection[],
+    records: InspectionRecord[],
+    recordDefects: RecordDefect[],
+  ): Inspection[] {
+    return inspections.map((inspection) => {
+      const last = this.sortRecords(
+        records.filter((record) => record.inspection_id === inspection.inspection_id),
+      )[0];
+      if (!last) return { ...inspection, defects: [] };
+      return {
+        ...inspection,
+        decision: last.decision,
+        memo: last.notes,
+        defects: this.withDefects(last, recordDefects).defects,
+      };
+    });
+  }
+
+  private recordsFromGoogle(rows: GoogleRecordRow[]): InspectionRecord[] {
+    return rows.map((row) => ({
+      record_id: row.record_id,
+      inspection_id: row.inspection_id,
+      user_id: row.user_id,
+      recorded_at: row.recorded_at,
+      decision: row.decision,
+      weight_g: row.weight_g === '' || row.weight_g === null ? null : Number(row.weight_g),
+      notes: String(row.notes ?? ''),
+      content_version: Number(row.content_version) || 0,
+      change_reason: String(row.change_reason ?? ''),
+    }));
+  }
+
+  async listRecords(inspectionId: string): Promise<InspectionRecordWithDefects[]> {
+    let records: InspectionRecord[];
+    let recordDefects: RecordDefect[];
+    if (getStorageInfo().storage === 'live') {
+      const result = await this.google.call<{ records: GoogleRecordRow[]; defects: RecordDefect[] }>(
+        'listInspectionRecords',
+        { inspection_id: inspectionId },
+      );
+      records = this.recordsFromGoogle(result.records ?? []);
+      recordDefects = result.defects ?? [];
+    } else {
+      const state = this.readLocalState();
+      records = state.inspection_records.filter((record) => record.inspection_id === inspectionId);
+      recordDefects = state.record_defects;
+    }
+    return this.sortRecords(records).map((record) => this.withDefects(record, recordDefects));
+  }
+
+  async saveRecord(record: InspectionRecord, defects: string[]): Promise<InspectionRecordWithDefects> {
+    const recordDefects = defects.map((defect_code) => ({ record_id: record.record_id, defect_code }));
+    if (getStorageInfo().storage === 'live') {
+      await this.google.call('saveInspectionRecord', { record, defects });
+    } else {
+      const state = this.readLocalState();
+      const inspection = state.inspections.find((item) => item.inspection_id === record.inspection_id);
+      if (inspection) inspection.content_version = record.content_version;
+      state.inspection_records.push(record);
+      state.record_defects.push(...recordDefects);
+      this.writeLocalState(state);
+    }
+    return this.withDefects(record, recordDefects);
   }
 
   private async getGoogleInspections(): Promise<Inspection[]> {
     const result = await this.google.call<GoogleInspectionData>('read', {
-      tabs: ['inspections', 'images'],
+      tabs: ['inspections', 'images', 'inspection_records', 'record_defects'],
     });
     return this.fromGoogle(result);
   }
@@ -70,7 +185,7 @@ export class InspectionStore {
       imagesByInspection.set(image.inspection_id, images);
     }
 
-    return (result.inspections ?? []).map((row) => ({
+    const inspections = (result.inspections ?? []).map((row): Inspection => ({
       inspection_id: row.inspection_id,
       product_id: row.product_id,
       inspected_at: row.inspected_at,
@@ -83,17 +198,17 @@ export class InspectionStore {
         .sort((left, right) => Number(left.position) - Number(right.position))
         .map((image) => image.image_url),
     }));
+    return this.applyRecords(
+      inspections,
+      this.recordsFromGoogle(result.inspection_records ?? []),
+      result.record_defects ?? [],
+    );
   }
 
-  saveLocal(inspection: Inspection): void {
-    const inspections = this.getLocalInspections();
-    const index = inspections.findIndex((item) => item.inspection_id === inspection.inspection_id);
-    if (index < 0) inspections.push(inspection);
-    else inspections[index] = inspection;
-
-    const temporaryPath = `${this.filePath}.tmp`;
-    writeFileSync(temporaryPath, JSON.stringify({ inspections }, null, 2), 'utf8');
-    renameSync(temporaryPath, this.filePath);
+  private addLocal(inspection: Inspection): void {
+    const state = this.readLocalState();
+    state.inspections.push(inspection);
+    this.writeLocalState(state);
   }
 
   async register(inspection: Inspection, photos: PreparedPhoto[]): Promise<Inspection> {
@@ -145,7 +260,7 @@ export class InspectionStore {
       ...inspection,
       images: photos.map((photo) => this.saveLocalPhoto(photo)),
     };
-    this.saveLocal(savedInspection);
+    this.addLocal(savedInspection);
     return savedInspection;
   }
 
@@ -172,7 +287,14 @@ export class InspectionStore {
       return;
     }
 
-    this.saveLocal(inspection);
+    const state = this.readLocalState();
+    const saved = state.inspections.find((item) => item.inspection_id === inspection.inspection_id);
+    if (!saved) return;
+    saved.product_id = inspection.product_id;
+    saved.inspected_at = inspection.inspected_at;
+    saved.weight_g = inspection.weight_g;
+    saved.content_version = inspection.content_version;
+    this.writeLocalState(state);
   }
 
   async getDrivePhoto(fileId: string): Promise<GooglePhoto> {

@@ -44,7 +44,15 @@ export class EvidenceStore {
   async load(): Promise<ReviewData> {
     if (getStorageInfo().storage === 'live') {
       const data = await this.google.call<GoogleReviewData>('read', {
-        tabs: ['inspections', 'images', 'gemini_results', 'evidence_queries', 'evidence_links'],
+        tabs: [
+          'inspections',
+          'images',
+          'inspection_records',
+          'record_defects',
+          'gemini_results',
+          'evidence_queries',
+          'evidence_links',
+        ],
       });
       return {
         inspections: this.inspections.fromGoogle(data),
