@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
 } from '@nestjs/common';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,17 +15,26 @@ interface PromptRecord {
   custom: boolean;
 }
 
+export type PromptKind = 'gemini' | 'notebooklm';
+
 interface SavedPrompt {
   name: string;
   text: string;
+  kind?: PromptKind;
 }
 
 const defaultPromptNames = ['v1', 'v2', 'v3'] as const;
 
-function getDefaultPrompts(): PromptRecord[] {
+function readKind(value: unknown): PromptKind {
+  if (value === undefined || value === 'gemini') return 'gemini';
+  if (value === 'notebooklm') return 'notebooklm';
+  throw new BadRequestException('지시문 종류를 확인하세요.');
+}
+
+function getDefaultPrompts(kind: PromptKind): PromptRecord[] {
   return defaultPromptNames.map((name) => ({
     name,
-    text: readFileSync(path.join(process.cwd(), 'prompts', `gemini-${name}.md`), 'utf8'),
+    text: readFileSync(path.join(process.cwd(), 'prompts', `${kind}-${name}.md`), 'utf8'),
     custom: false,
   }));
 }
@@ -45,9 +55,13 @@ function readCustomPrompts(): SavedPrompt[] {
   );
 }
 
-export function findPrompt(name: string): SavedPrompt | undefined {
-  const defaults = getDefaultPrompts().map(({ name: promptName, text }) => ({ name: promptName, text }));
-  return [...defaults, ...readCustomPrompts()].find((prompt) => prompt.name === name);
+function readPromptsOf(kind: PromptKind): SavedPrompt[] {
+  return readCustomPrompts().filter((prompt) => (prompt.kind ?? 'gemini') === kind);
+}
+
+export function findPrompt(name: string, kind: PromptKind = 'gemini'): SavedPrompt | undefined {
+  const defaults = getDefaultPrompts(kind).map(({ name: promptName, text }) => ({ name: promptName, text }));
+  return [...defaults, ...readPromptsOf(kind)].find((prompt) => prompt.name === name);
 }
 
 function getKoreanTimestamp(): string {
@@ -66,16 +80,18 @@ function getKoreanTimestamp(): string {
 @Controller('api/prompts')
 export class PromptsController {
   @Get()
-  getPrompts(): { default: string; prompts: PromptRecord[] } {
+  getPrompts(@Query('kind') requestedKind?: string): { default: string; prompts: PromptRecord[] } {
+    const kind = readKind(requestedKind);
     const prompts = [
-      ...getDefaultPrompts(),
-      ...readCustomPrompts().map((prompt) => ({ ...prompt, custom: true })),
+      ...getDefaultPrompts(kind),
+      ...readPromptsOf(kind).map(({ name, text }) => ({ name, text, custom: true })),
     ];
     return { default: 'v3', prompts };
   }
 
   @Post()
-  savePrompt(@Body() body: { base?: unknown; text?: unknown }): PromptRecord {
+  savePrompt(@Body() body: { base?: unknown; text?: unknown; kind?: unknown }): PromptRecord {
+    const kind = readKind(body?.kind);
     if (
       typeof body?.base !== 'string' ||
       !defaultPromptNames.includes(body.base as (typeof defaultPromptNames)[number]) ||
@@ -91,7 +107,7 @@ export class PromptsController {
     const filePath = getCustomPromptsPath();
     mkdirSync(path.dirname(filePath), { recursive: true });
     const customPrompts = readCustomPrompts();
-    customPrompts.push({ name: saved.name, text: saved.text });
+    customPrompts.push({ name: saved.name, text: saved.text, kind });
     writeFileSync(filePath, `${JSON.stringify(customPrompts, null, 2)}\n`, 'utf8');
 
     return { ...saved, custom: true };

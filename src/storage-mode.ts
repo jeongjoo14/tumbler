@@ -54,6 +54,44 @@ export function validateGeminiMode(): void {
   }
 }
 
+export type NotebookLMMode = 'off' | 'mock' | 'live';
+
+export function getNotebookLMMode(): NotebookLMMode {
+  const configuredMode = process.env.NOTEBOOKLM_MODE;
+  if (configuredMode) return configuredMode as NotebookLMMode;
+  return getStorageInfo().storage === 'live' ? 'off' : 'mock';
+}
+
+export function validateNotebookLMMode(): void {
+  const mode = getNotebookLMMode();
+  if (!['off', 'mock', 'live'].includes(mode)) {
+    throw new Error('.env의 NOTEBOOKLM_MODE를 off, mock, live 가운데 하나로 고쳐 주세요.');
+  }
+  if (getStorageInfo().storage === 'live' && mode === 'mock') {
+    throw new Error(
+      'STORAGE_MODE=live에서는 NOTEBOOKLM_MODE=mock을 쓸 수 없습니다. .env의 NOTEBOOKLM_MODE를 off 또는 live로 고쳐 주세요.',
+    );
+  }
+}
+
+export function getLinkStatusLine(): string {
+  const storage = getStorageInfo().storage;
+  const gemini = getGeminiInfo().gemini_mode;
+  const notebooklm = getNotebookLMMode();
+  const storageText: Record<StorageMode, string> = { mock: '로컬 파일', live: 'GAS 웹앱' };
+  const geminiText: Record<GeminiMode, string> = {
+    off: '사람이 직접 판정',
+    mock: '모의 초안',
+    live: 'GAS에서 OnePort로 Gemini 호출',
+  };
+  const notebooklmText: Record<NotebookLMMode, string> = {
+    off: '근거 대조 꺼짐',
+    mock: '모의 응답',
+    live: '실제 질의',
+  };
+  return `연동 상태: 저장소=${storage}(${storageText[storage]}) · Gemini=${gemini}(${geminiText[gemini]}) · NotebookLM=${notebooklm}(${notebooklmText[notebooklm]})`;
+}
+
 export function getOperationsInfo(): OperationsInfo {
   return { ...getStorageInfo(), ...getGeminiInfo() };
 }

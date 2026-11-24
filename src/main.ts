@@ -6,13 +6,20 @@ import session from 'express-session';
 import path from 'node:path';
 import { ApiExceptionFilter } from './api-exception.filter';
 import { AppModule } from './app.module';
-import { getGeminiInfo, getStorageInfo, validateGeminiMode } from './storage-mode';
+import {
+  getGeminiInfo,
+  getLinkStatusLine,
+  getStorageInfo,
+  validateGeminiMode,
+  validateNotebookLMMode,
+} from './storage-mode';
 
 async function bootstrap(): Promise<void> {
   try {
     validateGeminiMode();
+    validateNotebookLMMode();
   } catch (error) {
-    console.error(error instanceof Error ? error.message : 'GEMINI_MODE 설정을 확인하세요.');
+    console.error(error instanceof Error ? error.message : '.env 설정을 확인하세요.');
     process.exit(1);
   }
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -71,6 +78,7 @@ async function bootstrap(): Promise<void> {
   console.log(`품질 대시보드 서버 실행 중: http://127.0.0.1:${port}`);
   console.log(`저장소: ${getStorageInfo().label}`);
   console.log(`Gemini 판독: ${getGeminiInfo().gemini_label}`);
+  console.log(getLinkStatusLine());
 }
 
 void bootstrap();

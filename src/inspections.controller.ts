@@ -12,6 +12,7 @@ import {
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Inspection } from './inspection.types';
 import { InspectionStore, type PreparedPhoto } from './inspection.store';
+import { EvidenceStore } from './evidence.store';
 import { GeminiResultStore } from './gemini-result.store';
 import { findPrompt } from './prompts.controller';
 import { getGeminiInfo } from './storage-mode';
@@ -43,6 +44,7 @@ export class InspectionsController {
   constructor(
     private readonly store: InspectionStore,
     private readonly geminiResults: GeminiResultStore,
+    private readonly evidence: EvidenceStore,
   ) {}
 
   @Get()
@@ -51,15 +53,12 @@ export class InspectionsController {
     @Query('decision') decision?: string,
     @Query('review') review?: string,
   ): Promise<Inspection[]> {
-    const [allInspections, inspectionIdsWithResults] = await Promise.all([
-      this.store.getAll(),
-      review === 'pending' ? this.geminiResults.getInspectionIdsWithResults() : Promise.resolve(null),
-    ]);
-    let inspections = allInspections;
+    const reviewData = review === 'pending' ? await this.evidence.load() : null;
+    let inspections = reviewData ? reviewData.inspections : await this.store.getAll();
     if (date) inspections = inspections.filter((inspection) => inspection.inspected_at.slice(0, 10) === date);
     if (decision) inspections = inspections.filter((inspection) => inspection.decision === decision);
-    if (inspectionIdsWithResults) {
-      inspections = inspections.filter((inspection) => inspectionIdsWithResults.has(inspection.inspection_id));
+    if (reviewData) {
+      inspections = inspections.filter((inspection) => this.evidence.isReviewPending(reviewData, inspection));
     }
     return inspections.sort((a, b) => b.inspected_at.localeCompare(a.inspected_at));
   }
@@ -161,12 +160,13 @@ export class InspectionsController {
 
   @Get(':inspectionId/gemini')
   async getGeminiStatus(@Param('inspectionId') inspectionId: string) {
-    const [inspection, results] = await Promise.all([
-      this.store.find(inspectionId),
-      this.geminiResults.listResults(inspectionId),
-    ]);
+    const data = await this.evidence.load();
+    const inspection = data.inspections.find((item) => item.inspection_id === inspectionId);
     if (!inspection) throw new NotFoundException('검사를 찾을 수 없습니다.');
-    return this.geminiResults.getStatus(inspection, results);
+    const results = data.results.filter((record) => record.inspection_id === inspectionId);
+    const latest = this.evidence.latestResult(data, inspectionId);
+    const link = latest ? this.evidence.latestLink(data, latest.result_id) : undefined;
+    return this.geminiResults.getStatus(inspection, results, link ?? null);
   }
 
   private readWeight(value: unknown): number | null {

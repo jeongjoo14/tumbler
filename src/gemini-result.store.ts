@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import type { Inspection } from './inspection.types';
+import type { EvidenceLink } from './evidence.types';
 import type { GeminiResultFields, GeminiResultRecord, GeminiRunState, GeminiRunStatus } from './gemini-result.types';
 import { GoogleWebAppClient } from './google-web-app.client';
 import { getGeminiInfo, getStorageInfo } from './storage-mode';
@@ -20,7 +21,7 @@ interface GoogleGeminiResults {
   results: GoogleGeminiResultRecord[];
 }
 
-interface GoogleGeminiResultRecord extends Omit<GeminiResultRecord, 'weight_g' | 'images' | 'result'> {
+export interface GoogleGeminiResultRecord extends Omit<GeminiResultRecord, 'weight_g' | 'images' | 'result'> {
   weight_g: number | string | null;
   images: unknown;
   result: unknown;
@@ -33,27 +34,30 @@ export class GeminiResultStore {
 
   constructor(private readonly google: GoogleWebAppClient) {}
 
-  async getInspectionIdsWithResults(): Promise<Set<string>> {
-    const results = await this.readResults();
-    return new Set(results.map((record) => record.inspection_id));
+  async listAll(): Promise<GeminiResultRecord[]> {
+    return this.readResults();
   }
 
-  async listResults(inspectionId: string): Promise<GeminiResultRecord[]> {
-    return this.readResults(inspectionId);
+  isStale(inspection: Inspection, record: GeminiResultRecord): boolean {
+    return (
+      record.product_id !== inspection.product_id ||
+      record.weight_g !== inspection.weight_g ||
+      JSON.stringify(record.images) !== JSON.stringify(inspection.images)
+    );
   }
 
-  async getStatus(inspection: Inspection, loadedResults?: GeminiResultRecord[]): Promise<GeminiRunStatus> {
+  async getStatus(
+    inspection: Inspection,
+    loadedResults?: GeminiResultRecord[],
+    link: EvidenceLink | null = null,
+  ): Promise<GeminiRunStatus> {
     const results = (loadedResults ?? (await this.readResults(inspection.inspection_id)))
       .slice()
+      .reverse()
       .sort((left, right) => right.created_at.localeCompare(left.created_at));
     const current = this.runStates.get(inspection.inspection_id) ?? { state: 'idle' as const };
     const latest = results[0];
-    const stale = Boolean(
-      latest &&
-        (latest.product_id !== inspection.product_id ||
-          latest.weight_g !== inspection.weight_g ||
-          JSON.stringify(latest.images) !== JSON.stringify(inspection.images)),
-    );
+    const stale = Boolean(latest && this.isStale(inspection, latest));
 
     return {
       mode: getGeminiInfo().gemini_mode,
@@ -61,6 +65,7 @@ export class GeminiResultStore {
       ...(current.state === 'failed' && current.error ? { error: current.error } : {}),
       results,
       stale,
+      link,
     };
   }
 
@@ -94,6 +99,7 @@ export class GeminiResultStore {
       state: 'running',
       results: [],
       stale: false,
+      link: null,
     };
   }
 
@@ -203,24 +209,37 @@ export class GeminiResultStore {
     if (getStorageInfo().storage === 'live') {
       const values = inspectionId ? { inspection_id: inspectionId } : {};
       const response = await this.google.call<GoogleGeminiResults>('listGeminiResults', values);
-      return (response.results ?? []).map((record) => {
-        const result = normalizeGeminiResult(record.result);
-        if (!result) throw new Error('저장된 판독 결과를 읽을 수 없습니다.');
-        return {
-          ...record,
-          weight_g: record.weight_g === null || record.weight_g === '' ? null : Number(record.weight_g),
-          images: Array.isArray(record.images)
-            ? record.images.filter((image): image is string => typeof image === 'string')
-            : [],
-          result,
-        };
-      });
+      return this.fromGoogle(response.results ?? []);
     }
 
     const records = this.readLocalResults();
     return inspectionId
       ? records.filter((record) => record.inspection_id === inspectionId)
       : records;
+  }
+
+  fromGoogle(records: GoogleGeminiResultRecord[]): GeminiResultRecord[] {
+    const parseCell = (value: unknown): unknown => {
+      if (typeof value !== 'string') return value;
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    };
+    return records.map((record) => {
+      const result = normalizeGeminiResult(parseCell(record.result));
+      if (!result) throw new Error('저장된 판독 결과를 읽을 수 없습니다.');
+      const images = parseCell(record.images);
+      return {
+        ...record,
+        weight_g: record.weight_g === null || record.weight_g === '' ? null : Number(record.weight_g),
+        images: Array.isArray(images)
+          ? images.filter((image): image is string => typeof image === 'string')
+          : [],
+        result,
+      };
+    });
   }
 
   private readLocalResults(): GeminiResultRecord[] {

@@ -22,7 +22,7 @@ interface GoogleImageRow {
   image_url: string;
 }
 
-interface GoogleInspectionData {
+export interface GoogleInspectionData {
   inspections: GoogleInspectionRow[];
   images: GoogleImageRow[];
 }
@@ -59,6 +59,10 @@ export class InspectionStore {
     const result = await this.google.call<GoogleInspectionData>('read', {
       tabs: ['inspections', 'images'],
     });
+    return this.fromGoogle(result);
+  }
+
+  fromGoogle(result: GoogleInspectionData): Inspection[] {
     const imagesByInspection = new Map<string, GoogleImageRow[]>();
     for (const image of result.images ?? []) {
       const images = imagesByInspection.get(image.inspection_id) ?? [];

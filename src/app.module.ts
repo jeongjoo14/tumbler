@@ -10,9 +10,12 @@ import { ApiFallbackController } from './api-fallback.controller';
 import { DrivePhotoController } from './drive-photo.controller';
 import { PromptsController } from './prompts.controller';
 import { GeminiResultStore } from './gemini-result.store';
+import { EvidenceController } from './evidence.controller';
+import { EvidenceStore } from './evidence.store';
+import { NotebookLMClient } from './notebooklm.client';
 
 @Module({
-  controllers: [AuthController, CatalogController, InspectionsController, HomeController, OperationsController, DrivePhotoController, PromptsController, ApiFallbackController],
-  providers: [InspectionStore, GoogleWebAppClient, GeminiResultStore],
+  controllers: [AuthController, CatalogController, InspectionsController, HomeController, OperationsController, DrivePhotoController, PromptsController, EvidenceController, ApiFallbackController],
+  providers: [InspectionStore, GoogleWebAppClient, GeminiResultStore, EvidenceStore, NotebookLMClient],
 })
 export class AppModule {}

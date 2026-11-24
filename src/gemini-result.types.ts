@@ -1,3 +1,4 @@
+import type { EvidenceLink } from './evidence.types';
 import type { GeminiMode } from './storage-mode';
 
 export interface GeminiResultFields {
@@ -31,4 +32,5 @@ export interface GeminiRunStatus {
   error?: string;
   results: GeminiResultRecord[];
   stale: boolean;
+  link: EvidenceLink | null;
 }

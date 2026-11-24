@@ -15,6 +15,16 @@ export class CatalogController {
     return products;
   }
 
+  @Get('standards/:revision/text')
+  getStandardText(@Param('revision') revision: string): { revision: string; text: string } {
+    if (revision !== 'Rev.A' && revision !== 'Rev.B') {
+      throw new NotFoundException('검사기준을 찾을 수 없습니다.');
+    }
+
+    const filePath = path.join(process.cwd(), 'standards', `notebooklm-${revision}.md`);
+    return { revision, text: readFileSync(filePath, 'utf8') };
+  }
+
   @Get('standards/:revision')
   getStandard(@Param('revision') revision: string): unknown {
     if (revision !== 'Rev.A' && revision !== 'Rev.B') {
