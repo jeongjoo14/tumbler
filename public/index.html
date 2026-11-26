@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>텀블러 공장 제조품질관리</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
     <style>
       :root {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -652,6 +655,259 @@
         color: #b42318;
         font-weight: 600;
       }
+
+      /* ===== 디자인: 기업용 MES 느낌 (흰 바탕 + 검정 굵은 글자 + 파랑 한 가지) ===== */
+      :root {
+        --c-bg: #f5f5f5;
+        --c-surface: #ffffff;
+        --c-ink: #111111;
+        --c-text: #222222;
+        --c-muted: #666666;
+        --c-line: #e1e1e1;
+        --c-line-strong: #111111;
+        --c-blue: #1769e0;
+        --c-blue-bright: #2189ff;
+        --c-blue-soft: #e8f1ff;
+        --c-tab: #6b6b6b;
+        --c-ok: #1f7a3d;
+        --c-ok-soft: #e6f4ea;
+        --c-ng: #c62828;
+        --c-ng-soft: #fdecea;
+        --c-hold: #b45f00;
+        --c-hold-soft: #fff1e0;
+        --font-main: "Noto Sans KR", "Noto Sans", "Malgun Gothic", sans-serif;
+        font-family: var(--font-main);
+        color: var(--c-text);
+        background: var(--c-bg);
+      }
+
+      body { background: var(--c-bg); }
+
+      :focus-visible { outline: 3px solid var(--c-blue-bright); outline-offset: 2px; }
+
+      h1 { color: var(--c-ink); font-size: 32px; font-weight: 700; letter-spacing: -0.01em; }
+      h2 { color: var(--c-ink); font-size: 22px; font-weight: 700; }
+      h3 { color: var(--c-ink); font-size: 20px; font-weight: 700; }
+      h4 { color: var(--c-ink); font-size: 17px; font-weight: 700; }
+
+      /* 머리 부분 */
+      .app-header {
+        min-height: 72px;
+        background: var(--c-surface);
+        border-bottom: 1px solid var(--c-line);
+        box-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+      }
+      .brand-link { color: var(--c-ink); font-size: 20px; font-weight: 700; }
+      .header-actions a {
+        padding: 8px 14px;
+        border-radius: 8px;
+        color: #333333;
+        background: #f3f3f3;
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .header-actions a:hover { color: var(--c-blue); background: var(--c-blue-soft); }
+      .header-user { color: var(--c-muted); }
+      .logout-button {
+        padding: 9px 18px;
+        border: 1px solid var(--c-ink);
+        border-radius: 999px;
+        color: var(--c-ink);
+        background: var(--c-surface);
+      }
+      .logout-button:hover:not(:disabled) { color: #ffffff; background: var(--c-ink); }
+
+      /* 바탕과 본문 상자 */
+      .page-content { place-items: start center; padding: 40px 20px 56px; }
+      #app-screen {
+        width: min(100%, 1080px);
+        padding: 40px;
+        border: 1px solid var(--c-line);
+        border-radius: 4px;
+        background: var(--c-surface);
+      }
+      .login-box {
+        align-self: center;
+        margin-top: 40px;
+        border: 1px solid var(--c-line);
+        border-radius: 4px;
+        box-shadow: 0 10px 30px rgb(0 0 0 / 6%);
+      }
+      .app-footer { color: var(--c-muted); background: var(--c-surface); border-top: 1px solid var(--c-line); }
+      #home-view > p:first-child { margin: -12px 0 0; color: var(--c-muted); }
+
+      /* 버튼과 입력 칸 */
+      button {
+        border-radius: 999px;
+        background: var(--c-blue);
+        font-weight: 700;
+      }
+      button:hover:not(:disabled) { background: #0f57c2; }
+      .secondary-button,
+      #not-found-view a {
+        padding: 12px 24px;
+        border-radius: 999px;
+        background: var(--c-blue);
+      }
+      .secondary-button:hover,
+      #not-found-view a:hover { background: #0f57c2; }
+      input,
+      select,
+      textarea,
+      .inspection-form select,
+      .inspection-form input,
+      .inspection-form textarea,
+      .detail-edit select,
+      .detail-edit input,
+      .home-summary-controls input {
+        border: 1px solid #cccccc;
+        border-radius: 6px;
+        font-family: var(--font-main);
+      }
+      select, textarea { box-sizing: border-box; padding: 11px 12px; font-size: 16px; background: var(--c-surface); }
+      input:focus,
+      select:focus,
+      textarea:focus,
+      .inspection-form select:focus,
+      .inspection-form input:focus,
+      .inspection-form textarea:focus,
+      .detail-edit select:focus,
+      .detail-edit input:focus {
+        outline: 3px solid rgb(33 137 255 / 25%);
+        border-color: var(--c-blue);
+      }
+      label { color: var(--c-ink); font-weight: 700; }
+      .weight-range { color: var(--c-blue); font-weight: 700; }
+
+      /* 홈: 숫자 상자 */
+      .home-summary-cards { gap: 16px; }
+      .home-summary-card,
+      button.home-summary-card {
+        padding: 22px 24px;
+        border: 1px solid var(--c-line);
+        border-radius: 4px;
+        background: var(--c-surface);
+      }
+      button.home-summary-card:hover { background: #fafafa; border-color: #bdbdbd; }
+      .home-summary-card dt { color: var(--c-muted); font-size: 15px; font-weight: 500; }
+      .home-summary-card dd { margin-top: 10px; color: var(--c-ink); font-size: 36px; font-weight: 700; line-height: 1.1; }
+      button.home-summary-card[aria-pressed="true"] {
+        border: 2px solid var(--c-blue);
+        background: var(--c-blue-soft);
+        box-shadow: inset 0 4px 0 var(--c-blue);
+      }
+      button.home-summary-card[aria-pressed="true"] dd { color: var(--c-blue); }
+
+      /* 홈: 검사 목록을 줄 목록으로 */
+      .home-inspection-list {
+        gap: 0;
+        margin-top: 28px;
+        border-top: 2px solid var(--c-line-strong);
+      }
+      .home-inspection-card {
+        align-items: center;
+        padding: 14px 8px;
+        border: 0;
+        border-bottom: 1px solid var(--c-line);
+        border-radius: 0;
+        background: var(--c-surface);
+        font-weight: 400;
+      }
+      .home-inspection-card:hover:not(:disabled) { background: #f5f9ff; }
+      .home-inspection-card img,
+      .home-inspection-no-image { border-radius: 4px; background: var(--c-bg); }
+      .home-inspection-details {
+        grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 0.7fr) auto;
+        align-items: center;
+        gap: 16px;
+        color: var(--c-text);
+      }
+      .home-inspection-details strong { color: var(--c-ink); }
+      #home-inspection-empty { margin-top: 24px; color: var(--c-muted); }
+
+      /* 판정 표시 */
+      .decision-tag,
+      #detail-decision {
+        display: inline-block;
+        padding: 4px 14px;
+        border-radius: 999px;
+        color: var(--c-muted);
+        background: #f0f0f0;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .decision-tag[data-decision="OK"], #detail-decision[data-decision="OK"] { color: var(--c-ok); background: var(--c-ok-soft); }
+      .decision-tag[data-decision="NG"], #detail-decision[data-decision="NG"] { color: var(--c-ng); background: var(--c-ng-soft); }
+      .decision-tag[data-decision="HOLD"], #detail-decision[data-decision="HOLD"] { color: var(--c-hold); background: var(--c-hold-soft); }
+
+      /* 검사 상세 */
+      .inspection-detail-summary {
+        align-items: center;
+        margin-bottom: 28px;
+        padding: 20px 24px;
+        border: 1px solid var(--c-line);
+        border-radius: 4px;
+        background: #fafafa;
+      }
+      .inspection-tabs {
+        flex-wrap: nowrap;
+        gap: 0;
+        background: var(--c-tab);
+        border-bottom: 0;
+      }
+      .inspection-tabs button {
+        flex: 1 1 0;
+        padding: 18px 12px;
+        border-radius: 0;
+        color: #e6e6e6;
+        background: transparent;
+        font-size: 17px;
+      }
+      .inspection-tabs button:hover:not([aria-selected="true"]) { color: #ffffff; background: #5a5a5a; }
+      .inspection-tabs button[aria-selected="true"] { color: #ffffff; background: var(--c-blue); }
+      .inspection-tab-panel { padding: 28px 4px; }
+      .detail-main-image { border: 1px solid var(--c-line); border-radius: 4px; background: var(--c-bg); }
+      .detail-thumbnails button { border: 1px solid var(--c-line); border-radius: 4px; background: var(--c-surface); }
+      .detail-thumbnails button:hover:not(:disabled) { background: var(--c-blue-soft); }
+      .detail-thumbnails button[aria-current="true"] { border: 3px solid var(--c-blue); }
+      .detail-values > div { border-bottom: 1px solid var(--c-line); }
+      .detail-values > div:first-child { border-top: 2px solid var(--c-line-strong); }
+      .detail-values dt { color: var(--c-muted); font-weight: 500; }
+      .detail-edit { border-top: 1px solid var(--c-line); }
+
+      /* AI 결과, 근거, 이력 */
+      .gemini-result-badge { color: var(--c-blue); background: var(--c-blue-soft); }
+      .gemini-result-badge.review-needed { color: #6b4e00; background: #ffe9a8; }
+      .gemini-result-fields div,
+      .evidence-answer,
+      .evidence details,
+      .evidence-link,
+      .record-history { border: 1px solid var(--c-line); border-radius: 4px; background: #fafafa; }
+      .gemini-result-fields dt { color: var(--c-muted); }
+      .gemini-result-fields .gemini-decision dd { color: var(--c-blue); font-size: 28px; }
+      .gemini-comparison { border-top: 1px solid var(--c-line); }
+      .gemini-comparison-table { border-top: 2px solid var(--c-line-strong); }
+      .gemini-comparison-table th,
+      .gemini-comparison-table td { border: 0; border-bottom: 1px solid var(--c-line); }
+      .gemini-comparison-table thead th { color: var(--c-ink); background: #f3f3f3; }
+      .gemini-comparison-table tbody th { color: var(--c-muted); background: #fafafa; }
+      .judgment-buttons button { border-radius: 999px; color: #333333; background: #f3f3f3; border: 2px solid var(--c-line); }
+      .judgment-buttons button:hover:not(:disabled):not([aria-pressed="true"]) { background: #e9e9e9; }
+      .judgment-buttons button[data-decision="OK"][aria-pressed="true"] { color: #ffffff; background: var(--c-ok); border-color: var(--c-ok); }
+      .judgment-buttons button[data-decision="NG"][aria-pressed="true"] { color: #ffffff; background: var(--c-ng); border-color: var(--c-ng); }
+      .judgment-buttons button[data-decision="HOLD"][aria-pressed="true"] { color: #ffffff; background: var(--c-hold); border-color: var(--c-hold); }
+      .judgment-buttons button[data-defect][aria-pressed="true"] { color: #ffffff; background: var(--c-blue); border-color: var(--c-blue); }
+
+      @media (max-width: 760px) {
+        #app-screen { padding: 24px 16px; }
+        .inspection-tabs { flex-wrap: wrap; }
+        .inspection-tabs button { flex: 1 1 45%; }
+        .home-inspection-details { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { scroll-behavior: auto !important; }
+      }
     </style>
   </head>
   <body>
@@ -1213,6 +1469,8 @@
           weight.textContent = inspection.weight_g === null ? '미측정' : `${inspection.weight_g}g`;
           const decision = document.createElement('span');
           decision.textContent = ({ OK: '정상', NG: '불량', HOLD: '보류' })[inspection.decision] || '미판정';
+          decision.className = 'decision-tag';
+          decision.dataset.decision = inspection.decision || 'NONE';
           details.append(id, product, weight, decision);
           card.append(details);
           homeInspectionList.append(card);
@@ -1907,6 +2165,7 @@
           document.querySelector('#detail-inspection-id').textContent = inspection.inspection_id;
           document.querySelector('#detail-product-name').textContent = productNames[inspection.product_id] || inspection.product_id;
           document.querySelector('#detail-decision').textContent = ({ OK: '정상', NG: '불량', HOLD: '보류' })[inspection.decision] || '미판정';
+          document.querySelector('#detail-decision').dataset.decision = inspection.decision || 'NONE';
           document.querySelector('#detail-content-version').textContent = `검사 기록 버전: ${inspection.content_version}`;
           document.querySelector('#detail-value-product').textContent = productNames[inspection.product_id] || inspection.product_id;
           document.querySelector('#detail-value-date').textContent = inspection.inspected_at;
