@@ -898,6 +898,45 @@
       .judgment-buttons button[data-decision="HOLD"][aria-pressed="true"] { color: #ffffff; background: var(--c-hold); border-color: var(--c-hold); }
       .judgment-buttons button[data-defect][aria-pressed="true"] { color: #ffffff; background: var(--c-blue); border-color: var(--c-blue); }
 
+      /* 카페 장면(Three.js): 로그인 배경과 홈 위쪽 띠 */
+      .app-header,
+      .yellow-notice,
+      .page-content,
+      .app-footer { position: relative; z-index: 1; }
+      .scene-bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        display: none;
+        background: #3a2a1f;
+      }
+      body.scene-login .scene-bg { display: block; }
+      body.scene-login { background: transparent; }
+      .scene-canvas { display: block; width: 100%; height: 100%; }
+      .scene-fallback { background: url("/images/cafe-tumbler.jpg") center / cover no-repeat; }
+      .home-scene.scene-fallback { background-position: 60% 30%; }
+      body.scene-login .page-content { place-items: center start; padding-left: clamp(20px, 7vw, 120px); }
+      body.scene-login .login-box {
+        margin-top: 0;
+        border: 1px solid rgb(255 255 255 / 60%);
+        background: rgb(255 255 255 / 88%);
+        box-shadow: 0 18px 50px rgb(0 0 0 / 28%);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+      }
+      .home-scene {
+        overflow: hidden;
+        height: 300px;
+        margin: 20px 0 8px;
+        border-radius: 4px;
+        background: #3a2a1f;
+      }
+
+      @media (max-width: 760px) {
+        body.scene-login .page-content { place-items: center; padding-left: 20px; }
+        .home-scene { height: 200px; }
+      }
+
       @media (max-width: 760px) {
         #app-screen { padding: 24px 16px; }
         .inspection-tabs { flex-wrap: wrap; }
@@ -911,6 +950,7 @@
     </style>
   </head>
   <body>
+    <div id="scene-bg" class="scene-bg" aria-hidden="true"></div>
     <header class="app-header">
       <a class="brand-link" href="/" data-link aria-label="텀블러 공장 제조품질관리 홈">
         <img src="/logo.svg" alt="" />
@@ -958,6 +998,7 @@
         </div>
         <section id="home-view" hidden>
           <p>검사할 제품의 사진을 등록해 주세요.</p>
+          <div id="home-scene" class="home-scene" aria-hidden="true"></div>
           <div class="home-summary-controls">
             <label for="home-date">날짜</label>
             <input id="home-date" type="date" />
@@ -2529,4 +2570,5 @@ window.loginFromButton=async function(event){
  finally{button.disabled=false;}
 };
 </script>
+<script type="module" src="/scene.js"></script>
 </html>
